@@ -1,0 +1,6 @@
+{
+  "name": "Lucky Ticket Event",
+  "description": "A gamified stock brokerage event page where users collect tickets through missions and apply for prizes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
