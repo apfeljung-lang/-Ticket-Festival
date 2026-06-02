@@ -170,6 +170,14 @@ export default function App() {
   // Mission guide modal state
   const [showMissionGuideModal, setShowMissionGuideModal] = useState(false);
 
+  // Ticket Claim animated alert modal state
+  const [claimTicketModal, setClaimTicketModal] = useState<{
+    show: boolean;
+    tickets: number;
+    title: string;
+    actionType: 'available' | 'pending';
+  } | null>(null);
+
   // Custom Toast state and helpers
   const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'info' | 'error' }>({
     show: false,
@@ -366,22 +374,35 @@ export default function App() {
   };
 
   const handleMissionAction = (missionId: string) => {
-    setMissions(prev => prev.map(m => {
-      if (m.id === missionId) {
-        if (m.status === 'pending') {
-          // Simulate completing the mission
-          alert('미션이 완료되었습니다! 응모권을 받으세요.');
-          return { ...m, status: 'available' };
-        }
-        if (m.status === 'available') {
-          // Claim the tickets
-          setUser(u => ({ ...u, tickets: u.tickets + m.tickets }));
-          alert(`${m.tickets}장의 응모권이 지급되었습니다!`);
-          return { ...m, status: 'completed' };
-        }
-      }
-      return m;
-    }));
+    const targetMission = missions.find(m => m.id === missionId);
+    if (!targetMission) return;
+
+    if (targetMission.status === 'pending') {
+      setMissions(prev => prev.map(m => m.id === missionId ? { ...m, status: 'available' } : m));
+      setClaimTicketModal({
+        show: true,
+        tickets: targetMission.tickets,
+        title: targetMission.title,
+        actionType: 'pending'
+      });
+    } else if (targetMission.status === 'available') {
+      setUser(u => ({ ...u, tickets: u.tickets + targetMission.tickets }));
+      setMissions(prev => prev.map(m => m.id === missionId ? { ...m, status: 'completed' } : m));
+
+      confetti({
+        particleCount: 80,
+        spread: 60,
+        origin: { y: 0.6 },
+        colors: ['#fbbf24', '#f59e0b', '#3b82f6', '#ec4899']
+      });
+
+      setClaimTicketModal({
+        show: true,
+        tickets: targetMission.tickets,
+        title: targetMission.title,
+        actionType: 'available'
+      });
+    }
   };
 
   const handleExchangeClick = (productId: string, title: string, cost: number, iconType: 'ticket' | 'stock' | 'coffee', description: string) => {
@@ -1860,6 +1881,86 @@ export default function App() {
             )}
             <span className="font-giants font-semibold tracking-tight">{toast.message}</span>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Ticket Claim Animated Modal */}
+      <AnimatePresence>
+        {claimTicketModal?.show && (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setClaimTicketModal(null)}
+              className="absolute inset-0 bg-slate-950/75 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ scale: 0.85, opacity: 0, y: 30 }}
+              animate={{ type: 'spring', stiffness: 260, damping: 20, scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.85, opacity: 0, y: 30 }}
+              className="relative w-full max-w-[340px] bg-white rounded-[32px] shadow-2xl p-6 border border-slate-100 flex flex-col items-center text-center overflow-hidden"
+            >
+              {/* Gold gradient shine background top decoration */}
+              <div className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-b from-yellow-50 to-transparent -z-10" />
+
+              {/* Close Button */}
+              <button
+                onClick={() => setClaimTicketModal(null)}
+                className="absolute top-4 right-4 p-1.5 hover:bg-slate-100 rounded-full transition-colors active:scale-90"
+              >
+                <X className="w-4 h-4 text-slate-400" />
+              </button>
+
+              {/* Flip & Scale Ticket Illustration */}
+              <motion.div
+                initial={{ rotateY: 180, scale: 0.5, opacity: 0 }}
+                animate={{ rotateY: 0, scale: [1, 1.15, 1], opacity: 1 }}
+                transition={{ delay: 0.15, type: 'spring', stiffness: 180, damping: 15 }}
+                className="relative mt-4 mb-5 w-20 h-20 bg-gradient-to-br from-yellow-300 to-amber-400 rounded-3xl flex items-center justify-center shadow-lg shadow-amber-200/50"
+              >
+                <Ticket className="w-10 h-10 text-indigo-950 stroke-[2.5]" />
+                <motion.div
+                  animate={{ scale: [1, 1.25, 1] }}
+                  transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                  className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white font-giants text-[11px] font-black px-2 py-0.5 rounded-full border-2 border-white shadow-md shadow-rose-200"
+                >
+                  +{claimTicketModal.tickets}
+                </motion.div>
+              </motion.div>
+
+              {/* Claim Title Badge */}
+              <span className="text-[9px] font-black text-amber-500 font-giants italic bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full mb-3">
+                {claimTicketModal.actionType === 'available' ? 'CLAIM SUCCESS' : 'STAGE READY'}
+              </span>
+
+              {/* Appreciative text block */}
+              <h3 className="text-base font-black text-slate-800 font-giants mb-1">
+                {claimTicketModal.actionType === 'available' ? '응모권 지급 완료!' : '미션 성공 완료!'}
+              </h3>
+              
+              <div className="text-[11px] text-slate-500 leading-relaxed font-giants px-1.5 mb-5 select-none">
+                <span className="font-extrabold text-indigo-600 block mb-1">"{claimTicketModal.title}"</span>
+                {claimTicketModal.actionType === 'available' ? (
+                  <p>
+                    미션을 완수하여 보상 응모권 <span className="font-black text-amber-500">{claimTicketModal.tickets}장</span>이 고객님의 지갑 속에 안전하고 귀중하게 적립되었습니다! 🎉
+                  </p>
+                ) : (
+                  <p>
+                    미션을 성공적으로 해결하셨습니다! 이제 하단 목록의 <span className="font-black text-amber-500">'GET'</span> 버튼을 명확히 클릭하셔서 응모권 <span className="font-black text-amber-500">{claimTicketModal.tickets}장</span>을 수령해보세요!
+                  </p>
+                )}
+              </div>
+
+              {/* Confirm / Close Button */}
+              <button
+                onClick={() => setClaimTicketModal(null)}
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-100 transition-all font-giants active:scale-95 duration-150"
+              >
+                확인 완료
+              </button>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
       </div>
