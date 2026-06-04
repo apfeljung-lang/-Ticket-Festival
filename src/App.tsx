@@ -83,10 +83,10 @@ import { Mission, Prize, UserStatus } from './types';
 
 // Mock Data
 const INITIAL_MISSIONS: Mission[] = [
-  { id: '1', title: '투혼 딜리버리', condition: '매일 출석 체크', tickets: 1, status: 'completed' },
+  { id: '1', title: '투혼 딜리버리', condition: '매일 출석 체크', tickets: 1, status: 'pending' },
   { id: '2', title: '신규 계좌 개설', condition: '최초 계좌 개설 완료하기', tickets: 5, status: 'available' },
   { id: '3', title: '앱 로그인', condition: 'MTS 앱 월 10회 이상 접속', tickets: 1, status: 'pending' },
-  { id: '4', title: '투혼쇼핑', condition: '투혼 쇼핑몰 방문하기 (최대 30회)', tickets: 1, status: 'available' },
+  { id: '4', title: '투혼쇼핑', condition: '투혼 쇼핑몰 방문하기 (최대 30회)', tickets: 1, status: 'pending' },
   { id: '5', title: '자산 규모 달성', condition: '평가 잔고 1천만 원 이상 유지', tickets: 5, status: 'pending' },
   { id: '6', title: '자산 규모 달성', condition: '평가 잔고 5천만 원 이상 유지', tickets: 15, status: 'available' },
   { id: '7', title: '국내 주식 거래', condition: '일일 국내 체결 500만원 이상', tickets: 3, status: 'pending' },
@@ -169,6 +169,41 @@ export default function App() {
 
   // Mission guide modal state
   const [showMissionGuideModal, setShowMissionGuideModal] = useState(false);
+
+  // Attendance Check States
+  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+  const [attendanceDays, setAttendanceDays] = useState([
+    { day: 1, name: '월', attended: true, isToday: false },
+    { day: 2, name: '화', attended: true, isToday: false },
+    { day: 3, name: '수', attended: false, isToday: true },
+    { day: 4, name: '목', attended: false, isToday: false },
+    { day: 5, name: '금', attended: false, isToday: false },
+    { day: 6, name: '토', attended: false, isToday: false },
+    { day: 7, name: '일', attended: false, isToday: false },
+  ]);
+
+  // Shopping Mall Visit representation states
+  const [showShoppingModal, setShowShoppingModal] = useState(false);
+  const [shoppingProgress, setShoppingProgress] = useState(0);
+  const [isVisitingShopping, setIsVisitingShopping] = useState(false);
+
+  // Bonus Point Claim states
+  const [showBonusPointModal, setShowBonusPointModal] = useState(false);
+  const [bonusBrandMissions, setBonusBrandMissions] = useState([
+    { id: 'bb1', provider: '쿠팡플레이', action: '앱 최초 접속', points: 300, status: 'pending' },
+    { id: 'bb2', provider: '잡코리아', action: '6월 앱 접속', points: 200, status: 'pending' },
+    { id: 'bb3', provider: '시사저널 채널 구독', action: '뉴스채널 구독', points: 150, status: 'pending' },
+    { id: 'bb4', provider: 'KODEX ETF', action: '유투브 채널 구독', points: 150, status: 'pending' },
+    { id: 'bb5', provider: '우리은행', action: '인스타그램 팔로우', points: 150, status: 'pending' },
+    { id: 'bb6', provider: 'GS25', action: '인스타그램 팔로우', points: 150, status: 'pending' },
+  ]);
+  const [activeBonusSim, setActiveBonusSim] = useState<{
+    id: string;
+    provider: string;
+    action: string;
+    points: number;
+    progress: number;
+  } | null>(null);
 
   // Ticket Claim animated alert modal state
   const [claimTicketModal, setClaimTicketModal] = useState<{
@@ -378,13 +413,19 @@ export default function App() {
     if (!targetMission) return;
 
     if (targetMission.status === 'pending') {
-      setMissions(prev => prev.map(m => m.id === missionId ? { ...m, status: 'available' } : m));
-      setClaimTicketModal({
-        show: true,
-        tickets: targetMission.tickets,
-        title: targetMission.title,
-        actionType: 'pending'
-      });
+      if (missionId === '1') {
+        setShowAttendanceModal(true);
+      } else if (missionId === '4') {
+        setShowShoppingModal(true);
+      } else {
+        setMissions(prev => prev.map(m => m.id === missionId ? { ...m, status: 'available' } : m));
+        setClaimTicketModal({
+          show: true,
+          tickets: targetMission.tickets,
+          title: targetMission.title,
+          actionType: 'pending'
+        });
+      }
     } else if (targetMission.status === 'available') {
       setUser(u => ({ ...u, tickets: u.tickets + targetMission.tickets }));
       setMissions(prev => prev.map(m => m.id === missionId ? { ...m, status: 'completed' } : m));
@@ -404,6 +445,128 @@ export default function App() {
       });
     }
   };
+
+  const handlePerformAttendance = () => {
+    const today = attendanceDays.find(d => d.isToday);
+    if (!today || today.attended) return;
+
+    setAttendanceDays(prev => prev.map(d => d.isToday ? { ...d, attended: true } : d));
+    setMissions(prev => prev.map(m => m.id === '1' ? { ...m, status: 'available' } : m));
+
+    confetti({
+      particleCount: 70,
+      spread: 55,
+      origin: { y: 0.6 },
+      colors: ['#4f46e5', '#3b82f6', '#10b981', '#fbbf24']
+    });
+
+    showToast('오늘의 출석 체크가 정상 완료되었습니다! 🗓️', 'success');
+  };
+
+  // Simulates shopping mall view/visit progress
+  useEffect(() => {
+    let timer: any;
+    if (showShoppingModal && isVisitingShopping && shoppingProgress < 100) {
+      timer = setInterval(() => {
+        setShoppingProgress(prev => {
+          if (prev >= 100) {
+            clearInterval(timer);
+            setMissions(current => current.map(m => m.id === '4' ? { ...m, status: 'available' } : m));
+            confetti({
+              particleCount: 60,
+              spread: 50,
+              origin: { y: 0.6 },
+              colors: ['#4f46e5', '#10b981', '#fbbf24']
+            });
+            showToast('투혼 쇼핑몰 방문 미션을 완료했습니다! 🛍️', 'success');
+            return 100;
+          }
+          return prev + 10;
+        });
+      }, 200); // 10 steps of 200ms = 2s total duration
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [showShoppingModal, isVisitingShopping, shoppingProgress]);
+
+  useEffect(() => {
+    if (!showShoppingModal) {
+      setShoppingProgress(0);
+      setIsVisitingShopping(false);
+    }
+  }, [showShoppingModal]);
+
+  const handleBonusPointClaim = () => {
+    setShowBonusPointModal(true);
+  };
+
+  const handleStartBonusSim = (missionId: string) => {
+    const mission = bonusBrandMissions.find(m => m.id === missionId);
+    if (!mission || mission.status === 'completed') return;
+
+    setActiveBonusSim({
+      id: missionId,
+      provider: mission.provider,
+      action: mission.action,
+      points: mission.points,
+      progress: 0
+    });
+  };
+
+  // Simulates brand-specific mission progress
+  useEffect(() => {
+    let timer: any;
+    if (activeBonusSim && activeBonusSim.progress < 100) {
+      timer = setInterval(() => {
+        setActiveBonusSim(prev => {
+          if (!prev) return null;
+          const nextProgress = prev.progress + 10;
+          if (nextProgress >= 100) {
+            clearInterval(timer);
+            return { ...prev, progress: 100 };
+          }
+          return { ...prev, progress: nextProgress };
+        });
+      }, 150);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [activeBonusSim?.id, activeBonusSim !== null]);
+
+  useEffect(() => {
+    if (activeBonusSim && activeBonusSim.progress === 100) {
+      const missionId = activeBonusSim.id;
+      const targetM = bonusBrandMissions.find(m => m.id === missionId);
+      
+      if (targetM && targetM.status !== 'completed') {
+        setBonusBrandMissions(prev => prev.map(m => m.id === missionId ? { ...m, status: 'completed' } : m));
+        setUser(u => ({ ...u, points: (u.points || 0) + targetM.points }));
+        
+        setPointHistory(prev => [
+          {
+            id: `bonus_${missionId}_${Date.now()}`,
+            title: `[${targetM.provider}] 제휴 보너스`,
+            amount: targetM.points,
+            date: '지금',
+            type: 'plus',
+            remark: '미션 완료 단독 지급'
+          },
+          ...prev
+        ]);
+        
+        confetti({
+          particleCount: 80,
+          spread: 60,
+          origin: { y: 0.6 },
+          colors: ['#4f46e5', '#3b82f6', '#10b981', '#fbbf24', '#f59e0b']
+        });
+        
+        showToast(`[${targetM.provider}] 미션 완료! ${targetM.points}P 적립 💰`, 'success');
+      }
+    }
+  }, [activeBonusSim?.progress]);
 
   const handleExchangeClick = (productId: string, title: string, cost: number, iconType: 'ticket' | 'stock' | 'coffee', description: string) => {
     if ((user.points || 0) < cost) {
@@ -1027,6 +1190,47 @@ export default function App() {
               <span>공유하기</span>
             </button>
           </motion.div>
+
+          {/* Click to claim 100% points banner */}
+          {(() => {
+            const hasClaimedAllBonus = bonusBrandMissions.every(m => m.status === 'completed');
+            const completedBonusCount = bonusBrandMissions.filter(m => m.status === 'completed').length;
+            return (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleBonusPointClaim}
+                className={`cursor-pointer bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 rounded-2xl p-4 border border-orange-400 relative overflow-hidden flex items-center justify-between gap-3 shadow-md hover:shadow-lg transition-all mt-4 text-white font-giants ${
+                  hasClaimedAllBonus ? 'grayscale-[50%] opacity-80' : ''
+                }`}
+              >
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.2),transparent_60%)]" />
+                
+                <div className="flex items-center gap-3 min-w-0 z-10">
+                  <div className="shrink-0 w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white shadow-sm">
+                    <Coins className="w-5 h-5 text-yellow-250 animate-bounce" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-extrabold text-white text-[13px] tracking-tight">
+                      클릭하면 포인트 100% 💰
+                    </h3>
+                    <p className="text-[10px] text-yellow-105 font-medium mt-[1.5px] truncate">
+                      {hasClaimedAllBonus 
+                        ? '모든 제휴사 보너스 포인트 적립 완료! 🎉' 
+                        : `브랜드 제휴 미션 완료 시 즉시 대량 적립 (${completedBonusCount}/6 완료)`}
+                    </p>
+                  </div>
+                </div>
+                <div className="px-3.5 py-1.5 bg-white text-orange-600 rounded-xl font-black text-[10.5px] shadow-md flex items-center gap-0.5 transition-all shrink-0">
+                  <span>{hasClaimedAllBonus ? '완료' : '참여'}</span>
+                  <ChevronRight className="w-3 h-3 stroke-[3.5]" />
+                </div>
+              </motion.div>
+            );
+          })()}
         </section>
 
         {/* Footer info */}
@@ -1915,8 +2119,8 @@ export default function App() {
               {/* Flip & Scale Ticket Illustration */}
               <motion.div
                 initial={{ rotateY: 180, scale: 0.5, opacity: 0 }}
-                animate={{ rotateY: 0, scale: [1, 1.15, 1], opacity: 1 }}
-                transition={{ delay: 0.15, type: 'spring', stiffness: 180, damping: 15 }}
+                animate={{ rotateY: 0, scale: 1, opacity: 1 }}
+                transition={{ delay: 0.15, type: 'spring', stiffness: 180, damping: 12 }}
                 className="relative mt-4 mb-5 w-20 h-20 bg-gradient-to-br from-yellow-300 to-amber-400 rounded-3xl flex items-center justify-center shadow-lg shadow-amber-200/50"
               >
                 <Ticket className="w-10 h-10 text-indigo-950 stroke-[2.5]" />
@@ -1959,6 +2163,389 @@ export default function App() {
               >
                 확인 완료
               </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Attendance Check Board Modal */}
+      <AnimatePresence>
+        {showAttendanceModal && (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowAttendanceModal(false)}
+              className="absolute inset-0 bg-slate-950/75 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ scale: 0.85, opacity: 0, y: 30 }}
+              animate={{ type: 'spring', stiffness: 260, damping: 20, scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.85, opacity: 0, y: 30 }}
+              className="relative w-full max-w-[340px] bg-white rounded-[32px] shadow-2xl p-6 border border-slate-100 flex flex-col items-center overflow-hidden"
+            >
+              {/* Light blue soft background decoration */}
+              <div className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-b from-indigo-50/50 to-transparent -z-10" />
+
+              {/* Close Button */}
+              <button
+                onClick={() => setShowAttendanceModal(false)}
+                className="absolute top-4 right-4 p-1.5 hover:bg-slate-100 rounded-full transition-colors active:scale-90"
+              >
+                <X className="w-4 h-4 text-slate-400" />
+              </button>
+
+              {/* Attendance Icon Representation */}
+              <div className="mt-4 mb-3 w-16 h-16 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-md shadow-indigo-100/50">
+                <Calendar className="w-8 h-8 text-white stroke-[2.2]" />
+              </div>
+
+              {/* Modal Titles */}
+              <h3 className="text-base font-black text-slate-800 font-giants">
+                매일 매일 출석 체크 미션 🗓️
+              </h3>
+              <p className="text-[10.5px] text-slate-400 leading-relaxed font-giants px-2 mt-1 mb-4">
+                오늘 출석 도장을 찍으면 미션판에서 <span className="font-extrabold text-indigo-600">GET</span> 버튼이 활성화되어 보상 응모권을 수령할 수 있습니다!
+              </p>
+
+              {/* Weekly Calendar Stamp Board */}
+              <div className="grid grid-cols-7 gap-1.5 w-full my-3">
+                {attendanceDays.map((day) => {
+                  return (
+                    <div
+                      key={day.day}
+                      className={`relative font-giants flex flex-col items-center justify-between py-2 rounded-2xl border transition-all duration-300 min-h-[66px] ${
+                        day.attended
+                          ? 'bg-emerald-50/70 border-emerald-100 text-emerald-600 font-extrabold shadow-sm shadow-emerald-50'
+                          : day.isToday
+                            ? 'bg-amber-50 border-amber-300 text-amber-700 animate-pulse font-extrabold ring-2 ring-amber-300/20 shadow-md shadow-amber-50'
+                            : 'bg-slate-50 border-slate-100 text-slate-400'
+                      }`}
+                    >
+                      {/* 요일명 */}
+                      <span className="text-[9px] uppercase tracking-wide opacity-80">{day.name}</span>
+
+                      {/* 도장 또는 도장 대기 비주얼 */}
+                      <div className="my-1 flex items-center justify-center w-7 h-7 relative">
+                        {day.attended ? (
+                          <motion.div
+                            initial={{ scale: 0.1, rotate: -25 }}
+                            animate={{ scale: 1, rotate: 0 }}
+                            transition={{ type: 'spring', stiffness: 200, damping: 10 }}
+                            className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-md shadow-emerald-100"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 stroke-[3]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          </motion.div>
+                        ) : day.isToday ? (
+                          <div className="w-5 h-5 rounded-full border-2 border-dashed border-amber-400 flex items-center justify-center animate-[spin_8s_linear_infinite]">
+                            <span className="text-[7px] text-amber-500">★</span>
+                          </div>
+                        ) : (
+                          <div className="w-4 h-4 rounded-full border border-slate-200" />
+                        )}
+                      </div>
+
+                      {/* 날짜 번호 및 오늘 마크 */}
+                      <span className="text-[9px] font-bold">
+                        {day.isToday ? '오늘' : `${day.day}일차`}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Confirm / Action Button */}
+              {attendanceDays.find((d) => d.isToday)?.attended ? (
+                <div className="w-full mt-4 flex flex-col gap-2">
+                  <div className="bg-emerald-50 border border-emerald-100 py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span className="text-[10.5px] font-giants font-extrabold text-emerald-700">오늘의 출석 체크가 이미 완료되었습니다!</span>
+                  </div>
+                  <button
+                    onClick={() => setShowAttendanceModal(false)}
+                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-100 transition-all font-giants active:scale-95 duration-150"
+                  >
+                    미션판에서 응모권 받으러 가기
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handlePerformAttendance}
+                  className="w-full mt-4 py-3 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all font-giants active:scale-95 duration-150 flex items-center justify-center gap-1.5"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-200 fill-amber-200 animate-pulse" />
+                  <span>오늘의 출석 도장 쾅! 찍기</span>
+                </button>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Tuho Shopping Mall Visit Simulation Modal */}
+      <AnimatePresence>
+        {showShoppingModal && (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                if (!isVisitingShopping || shoppingProgress === 100) {
+                  setShowShoppingModal(false);
+                }
+              }}
+              className="absolute inset-0 bg-slate-950/75 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ scale: 0.85, opacity: 0, y: 30 }}
+              animate={{ type: 'spring', stiffness: 260, damping: 20, scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.85, opacity: 0, y: 30 }}
+              className="relative w-full max-w-[340px] bg-white rounded-[32px] shadow-2xl p-6 border border-slate-100 flex flex-col items-center overflow-hidden"
+            >
+              {/* Soft pink/orange gradient decoration */}
+              <div className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-b from-rose-50/50 to-transparent -z-10" />
+
+              {/* Close Button */}
+              {(!isVisitingShopping || shoppingProgress === 100) && (
+                <button
+                  onClick={() => setShowShoppingModal(false)}
+                  className="absolute top-4 right-4 p-1.5 hover:bg-slate-100 rounded-full transition-colors active:scale-90"
+                >
+                  <X className="w-4 h-4 text-slate-400" />
+                </button>
+              )}
+
+              {/* Shopping Icon Representation */}
+              <div className="mt-4 mb-3 w-16 h-16 bg-gradient-to-br from-rose-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-md shadow-rose-105/50">
+                <ShoppingBag className="w-8 h-8 text-white stroke-[2.2]" />
+              </div>
+
+              {/* Modal Titles */}
+              <h3 className="text-base font-black text-slate-800 font-giants">
+                투혼 쇼핑몰 방문 미션 🛍️
+              </h3>
+              <p className="text-[10.5px] text-slate-400 leading-relaxed font-giants px-2 mt-1 mb-6 text-center">
+                투혼 공식 쇼핑몰을 잠시 방문해 보세요.<br />방문 완료 후 미션이 <span className="font-extrabold text-indigo-600">GET</span> 버튼 상태로 활성화됩니다!
+              </p>
+
+              {/* Progress and Button Logic */}
+              {isVisitingShopping ? (
+                <div className="w-full flex flex-col items-center">
+                  <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden mb-1.5 relative border border-slate-200/20">
+                    <motion.div
+                      className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-rose-500 to-pink-500"
+                      animate={{ width: `${shoppingProgress}%` }}
+                      transition={{ ease: 'easeInOut' }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between w-full mb-4 px-1">
+                    <span className="text-[10px] text-slate-400 font-bold">쇼핑몰 구경 중...</span>
+                    <span className="text-[10px] text-rose-500 font-bold font-mono">{shoppingProgress}%</span>
+                  </div>
+
+                  {shoppingProgress === 100 ? (
+                    <button
+                      onClick={() => setShowShoppingModal(false)}
+                      className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-lg transition-all font-giants active:scale-95 duration-150 flex items-center justify-center gap-1.5"
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+                      <span>방문 완료! 미션판으로 돌아가기</span>
+                    </button>
+                  ) : (
+                    <div className="w-full py-3 bg-slate-100 text-slate-400 text-xs font-bold rounded-xl transition-all font-giants text-center">
+                      잠시만 기다려 주세요...
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <button
+                  onClick={() => setIsVisitingShopping(true)}
+                  className="w-full py-3 bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-rose-100 transition-all font-giants active:scale-95 duration-150 flex items-center justify-center gap-1.5"
+                >
+                  <Sparkles className="w-4 h-4 text-yellow-200 fill-yellow-200" />
+                  <span>투혼 쇼핑몰 즉시 방문하기 (2초)</span>
+                </button>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 100% Bonus Brand Missions Modal */}
+      <AnimatePresence>
+        {showBonusPointModal && (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                if (!activeBonusSim || activeBonusSim.progress === 100) {
+                  setShowBonusPointModal(false);
+                }
+              }}
+              className="absolute inset-0 bg-slate-950/75 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ scale: 0.85, opacity: 0, y: 30 }}
+              animate={{ type: 'spring', stiffness: 260, damping: 20, scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.85, opacity: 0, y: 30 }}
+              className="relative w-full max-w-[380px] bg-white rounded-[32px] shadow-2xl p-6 border border-slate-100 flex flex-col items-center overflow-hidden"
+            >
+              {/* Golden amber decorative background gradient */}
+              <div className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-b from-amber-50 to-transparent -z-10" />
+
+              {/* Close Button */}
+              {(!activeBonusSim || activeBonusSim.progress === 100) && (
+                <button
+                  onClick={() => setShowBonusPointModal(false)}
+                  className="absolute top-4 right-4 p-1.5 hover:bg-slate-100 rounded-full transition-colors active:scale-90"
+                >
+                  <X className="w-4 h-4 text-slate-400" />
+                </button>
+              )}
+
+              {activeBonusSim ? (
+                /* Interactive Mission Simulation Inner View */
+                <div className="w-full py-4 flex flex-col items-center text-center">
+                  <div className="relative w-16 h-16 mb-4 flex items-center justify-center">
+                    <motion.div
+                      className="absolute inset-0 rounded-full border-[3.5px] border-slate-100"
+                      style={{ borderTopColor: '#f97316' }}
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
+                    />
+                    <Coins className="w-6 h-6 text-orange-500 animate-pulse animate-bounce" />
+                  </div>
+
+                  <span className="text-[9px] bg-orange-50 border border-orange-100 text-orange-600 px-3 py-0.5 rounded-full font-black mb-2 font-giants uppercase tracking-wider">
+                    {activeBonusSim.provider} 미션 매칭 확인 중
+                  </span>
+
+                  <h4 className="text-sm font-black text-slate-800 font-giants">
+                    {activeBonusSim.action} 중...
+                  </h4>
+                  <p className="text-[10px] text-slate-400 font-giants mt-1 mb-5">
+                    안전하게 제휴 채널과의 연결 상태를 확인하고 있습니다.
+                  </p>
+
+                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden mb-1.5 relative border border-slate-200/25">
+                    <motion.div
+                      className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-orange-400 to-rose-500"
+                      animate={{ width: `${activeBonusSim.progress}%` }}
+                      transition={{ ease: 'easeInOut' }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between w-full mb-6 px-1">
+                    <span className="text-[9px] text-slate-400 font-bold">인증 진척율</span>
+                    <span className="text-[10px] text-orange-600 font-bold font-mono">{activeBonusSim.progress}%</span>
+                  </div>
+
+                  {activeBonusSim.progress === 100 ? (
+                    <button
+                      onClick={() => setActiveBonusSim(null)}
+                      className="w-full py-3 bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white text-xs font-bold rounded-xl shadow-md font-giants transition-all active:scale-95 duration-100 flex items-center justify-center gap-1.5"
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-yellow-200 fill-orange-500" />
+                      <span>포인트 즉시 획득! (목록으로)</span>
+                    </button>
+                  ) : (
+                    <div className="w-full py-3 bg-slate-100 text-slate-400 text-xs font-bold rounded-xl font-giants text-center">
+                      잠시만 기다려 주세요...
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* 6-Missions List View */
+                <div className="w-full flex flex-col items-center">
+                  {/* Top Header Section */}
+                  <div className="mt-4 mb-2.5 w-14 h-14 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center shadow-md shadow-orange-100">
+                    <Coins className="w-7 h-7 text-white fill-white" />
+                  </div>
+
+                  <h3 className="text-base font-black text-slate-800 font-giants">
+                    브랜드 보너스 충전소 💰
+                  </h3>
+                  <p className="text-[10.5px] text-slate-400 font-giants px-2 mt-1 mb-5 text-center leading-relaxed">
+                    아래 브랜드 미션을 클릭하면 포인트가 <span className="text-orange-500 font-extrabold">100% 즉시</span> 지급됩니다!
+                  </p>
+
+                  {/* Stacking list */}
+                  <div className="w-full flex flex-col gap-2.5 max-h-[290px] overflow-y-auto pr-1 mb-2">
+                    {bonusBrandMissions.map((m) => {
+                      const isCompleted = m.status === 'completed';
+                      return (
+                        <div
+                          key={m.id}
+                          className={`w-full p-3 rounded-2xl border flex items-center justify-between text-left transition-all ${
+                            isCompleted
+                              ? 'bg-slate-50/75 border-slate-100 opacity-60'
+                              : 'bg-white border-slate-100 hover:border-orange-200 hover:shadow-xs'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {/* Colorful Brand Icon representation */}
+                            <div
+                              className={`w-8.5 h-8.5 shrink-0 rounded-xl flex items-center justify-center font-bold text-[10.5px] ${
+                                isCompleted
+                                  ? 'bg-slate-100 text-slate-400'
+                                  : m.id === 'bb1'
+                                  ? 'bg-rose-50 text-rose-500 border border-rose-100' // 쿠팡플레이
+                                  : m.id === 'bb2'
+                                  ? 'bg-blue-50 text-blue-600 border border-blue-100' // 잡코리아
+                                  : m.id === 'bb3'
+                                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' // 시사저널
+                                  : m.id === 'bb4'
+                                  ? 'bg-indigo-50 text-indigo-650 border border-indigo-100' // KODEX ETF
+                                  : m.id === 'bb5'
+                                  ? 'bg-sky-50 text-sky-600 border border-sky-100' // 우리은행
+                                  : 'bg-green-50 text-green-600 border border-green-100' // GS25
+                              }`}
+                            >
+                              <span className="font-giants">
+                                {m.provider.substring(0, 2)}
+                              </span>
+                            </div>
+                            
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[11px] font-black text-slate-800 font-giants truncate">
+                                  {m.provider}
+                                </span>
+                                <span className="text-[8.5px] font-black font-mono bg-orange-50 text-orange-600 px-1 rounded border border-orange-100 shrink-0">
+                                  +{m.points}P
+                                </span>
+                              </div>
+                              <p className="text-[9.5px] text-slate-400 font-giants truncate mt-[1px]">
+                                {m.action}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Action badge or button */}
+                          {isCompleted ? (
+                            <div className="flex items-center gap-0.5 text-[9px] text-slate-400 font-black px-2 py-1 bg-slate-100 rounded-lg shrink-0">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                              <span>받음</span>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleStartBonusSim(m.id)}
+                              className="text-[9.5px] text-white font-black px-2.5 py-1.5 bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 rounded-lg shadow-sm font-giants active:scale-90 transition-all shrink-0"
+                            >
+                              참여하기
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </motion.div>
           </div>
         )}
